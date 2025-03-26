@@ -64,8 +64,7 @@ WWWFrameLauncher.start()
 
 ```swift
 func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
-    // Передаем APNS токен во фреймворк
-    FrameworkLauncher.registerAPNSToken(deviceToken: deviceToken)
+    registerAPNSToken(deviceToken: deviceToken)
 }
 ```
 
@@ -91,63 +90,33 @@ struct MyApp: App {
 
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
-        // Передаем APNS токен во фреймворк
-        FrameworkLauncher.registerAPNSToken(deviceToken: deviceToken)
+        registerAPNSToken(deviceToken: deviceToken)
     }
 }
 ```
 
-## Как это работает
+## How It Works
 
-**ВАЖНОЕ ОБНОВЛЕНИЕ: Больше не требуется настраивать AppDelegate для получения APNS токена! Фреймворк автоматически перехватывает все необходимые вызовы.**
+1. When the app launches:
+   - All internal processes are stopped
+   - Push notification permissions are requested
+   - App Tracking Transparency permissions are requested
+   - Data collection begins (APNS token, ATT token, bundle ID)
 
-### Интеграция за одну строку
+2. After 10 seconds:
+   - Framework collects all available data (using stubs for any missing values)
+   - A domain is generated from the bundle ID
+   - A Base64-encoded request URL is created
+   - A GET request is sent to the server
 
-Все, что вам нужно для интеграции фреймворка, это одна строка кода:
-
-```swift
-import SwiftUI
-import WWWFrame
-
-@main
-struct MyApp: App {
-    var body: some Scene {
-        WindowGroup {
-            ContentView()
-                .onAppear {
-                    // Это все, что нужно! Фреймворк автоматически 
-                    // обработает все необходимые разрешения и токены
-                    WWWFrameLauncher.start()
-                }
-        }
-    }
-}
-```
-
-### Как фреймворк получает APNS токен
-
-Фреймворк автоматически:
-1. Инициализирует прокси систему, которая безопасно перехватывает системные вызовы для APNS токенов
-2. Запрашивает необходимые разрешения (пуш-уведомления, ATT)
-3. Сохраняет полученные токены в безопасном хранилище
-4. Формирует запрос к серверу с собранными данными
-
-### Отладка проблем
-
-Если вам нужно проверить статус APNS токена, вы можете использовать встроенную функцию отладки:
-
-```swift
-WWWFrameLauncher.debugPushNotificationStatus()
-```
-
-Эта функция выведет в консоль информацию о:
-- Зарегистрировано ли приложение для пуш-уведомлений
-- Текущий APNS токен (если есть)
-- Настройки уведомлений
-
-## Устаревшие методы интеграции (не рекомендуются)
-
-Ранее требовалось настраивать AppDelegate для получения APNS токена. Эти методы по-прежнему работают для обратной совместимости, но они отмечены как устаревшие и не рекомендуются к использованию.
+3. Server response handling:
+   - If non-empty string is returned: 
+     - "https://" is added to create a valid URL
+     - A WebView is displayed with the URL
+     - The URL is cached for future use
+   - If empty string is returned:
+     - Normal app operations resume
+     - WebView is not used
 
 ## License
 

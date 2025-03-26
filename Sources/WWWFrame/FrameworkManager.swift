@@ -2,30 +2,6 @@ import SwiftUI
 import UserNotifications
 import AppTrackingTransparency
 import AdSupport
-import Security
-import ObjectiveC
-
-// Объявляем AppDelegate внутри фреймворка для перехвата системных событий
-class WWWFrameAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
-    static let shared = WWWFrameAppDelegate()
-    
-    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
-        let tokenString = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
-        print("WWWFrame: APNS token received from system: \(tokenString)")
-        
-        // Передаем токен в менеджер
-        FrameworkManager.shared.setAPNSToken(deviceToken)
-    }
-    
-    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
-        print("WWWFrame: Failed to register for remote notifications: \(error.localizedDescription)")
-    }
-    
-    // Для обработки нотификаций в foreground
-    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-        completionHandler([.banner, .sound, .badge])
-    }
-}
 
 class FrameworkManager {
     static let shared = FrameworkManager()
@@ -34,7 +10,6 @@ class FrameworkManager {
     private var attToken: String?
     private var bundleId: String?
     private var webURL: URL?
-    private var hasCompletedInitialRequest: Bool = false
     
     private let tokenWaitTime: TimeInterval = 10.0
     
@@ -43,48 +18,33 @@ class FrameworkManager {
     func launch() {
         print("WWWFrame: Launch initiated")
         
-        // Останавливаем все внутренние процессы
+        // Stop all internal processes
+        // This is a placeholder for app-specific logic
         print("WWWFrame: Stopping internal processes")
         
-        // Инициализируем автоматическое получение APNS токена
-        initializeProxySystem()
-        
-        // Запрашиваем разрешения на пуш-уведомления
+        // Request push notification permission
         requestPushNotificationPermission()
         
-        // Запрашиваем разрешения на трекинг
+        // Request app tracking transparency permission
         if #available(iOS 14.5, *) {
             requestTrackingPermission()
         } else {
             attToken = "stub_att"
         }
         
-        // Получаем bundle ID
+        // Get bundle ID
         bundleId = getBundleId()
         
-        // Проверяем, есть ли сохраненный URL
+        // Check if we have a cached URL
         if let cachedURL = UserDefaults.standard.string(forKey: "WWWFrame_CachedURL") {
             print("WWWFrame: Found cached URL: \(cachedURL)")
             showWebView(with: URL(string: cachedURL)!)
             return
         }
         
-        // Ждем сбора данных и делаем запрос к серверу
+        // Wait for data collection and make server request
         DispatchQueue.main.asyncAfter(deadline: .now() + tokenWaitTime) { [weak self] in
             self?.makeServerRequest()
-        }
-    }
-    
-    // Инициализация системы перехвата APNS токена
-    private func initializeProxySystem() {
-        // Инициализируем прокси для автоматического получения APNS токена
-        FrameworkAppDelegateProxy.shared.initialize()
-        print("WWWFrame: Proxy system for APNS token initialized")
-        
-        // Пытаемся получить сохраненный токен из Keychain
-        if let tokenData = FrameworkManager.getPushTokenFromKeychain() {
-            self.setAPNSToken(tokenData)
-            print("WWWFrame: Restored APNS token from Keychain")
         }
     }
     
@@ -93,18 +53,8 @@ class FrameworkManager {
         
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { [weak self] granted, error in
             if granted {
-                print("WWWFrame: Push notification permission granted")
                 DispatchQueue.main.async {
-                    // Регистрируем устройство для получения токена
                     UIApplication.shared.registerForRemoteNotifications()
-                    
-                    // На случай, если токен уже был получен ранее
-                    if let tokenData = FrameworkManager.getPushTokenFromKeychain() {
-                        self?.setAPNSToken(tokenData)
-                    } else {
-                        // Временно используем заглушку, позже токен должен прийти
-                        self?.apnsToken = "stub_apns_waiting"
-                    }
                 }
             } else {
                 print("WWWFrame: Push notification permission denied")
@@ -180,7 +130,6 @@ class FrameworkManager {
     private func makeServerRequest() {
         let url = createRequestURL()
         print("WWWFrame: Making server request to: \(url)")
-        hasCompletedInitialRequest = true
         
         URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
             DispatchQueue.main.async {
@@ -253,80 +202,7 @@ class FrameworkManager {
     // Called by the application delegate when receiving an APNS token
     func setAPNSToken(_ token: Data) {
         let tokenString = token.map { String(format: "%02.2hhx", $0) }.joined()
-        
-        // Проверяем, не является ли это тем же самым токеном, что у нас уже есть
-        if apnsToken == tokenString {
-            print("WWWFrame: Same APNS token received again, ignoring to prevent loops")
-            return
-        }
-        
         print("WWWFrame: APNS token set: \(tokenString)")
-        
-        // Сохраняем токен
-        FrameworkManager.savePushTokenToKeychain(token)
-        
-        // Обновляем токен
         apnsToken = tokenString
-        
-        // Проверяем, был ли уже сделан запрос с временным токеном
-        if hasCompletedInitialRequest && (apnsToken == "stub_apns_waiting" || apnsToken == "stub_apns") {
-            print("WWWFrame: Received real APNS token after initial request, making new request with actual token")
-            
-            // Создаем новый запрос с настоящим токеном
-            DispatchQueue.main.async { [weak self] in
-                self?.makeServerRequest()
-            }
-        }
-    }
-    
-    // Методы для сохранения и получения токена из Keychain
-    private static func savePushTokenToKeychain(_ tokenData: Data) {
-        print("WWWFrame: Attempting to save APNS token to keychain, token size: \(tokenData.count) bytes")
-        
-        // Проверяем, валиден ли токен (должен быть определенного размера)
-        guard tokenData.count > 0 else {
-            print("WWWFrame: Invalid APNS token (empty data), not saving to keychain")
-            return
-        }
-        
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: "APNSTokenKey",
-            kSecValueData as String: tokenData
-        ]
-        
-        // Удаляем существующий токен, если есть
-        let deleteStatus = SecItemDelete(query as CFDictionary)
-        if deleteStatus != errSecSuccess && deleteStatus != errSecItemNotFound {
-            print("WWWFrame: Warning - failed to delete existing APNS token from keychain with error: \(deleteStatus)")
-        }
-        
-        // Сохраняем новый токен
-        let status = SecItemAdd(query as CFDictionary, nil)
-        if status != errSecSuccess {
-            print("WWWFrame: Failed to save APNS token to keychain with error: \(status)")
-        } else {
-            print("WWWFrame: Successfully saved APNS token to keychain")
-        }
-    }
-    
-    private static func getPushTokenFromKeychain() -> Data? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrAccount as String: "APNSTokenKey",
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-        
-        var item: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &item)
-        
-        if status == errSecSuccess, let tokenData = item as? Data {
-            return tokenData
-        } else if status != errSecItemNotFound {
-            print("WWWFrame: Error retrieving token from keychain: \(status)")
-        }
-        
-        return nil
     }
 } 
