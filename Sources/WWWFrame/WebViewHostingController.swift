@@ -1,4 +1,5 @@
 import SwiftUI
+import WebKit
 
 class WebViewHostingController<Content: View>: UIHostingController<Content> {
     // Черные слои для SafeArea
@@ -95,7 +96,7 @@ class WebViewHostingController<Content: View>: UIHostingController<Content> {
     private func findAndConfigureWebView() {
         view.findWebViewControllerWrapper { webViewWrapper in
             // Устанавливаем начальные отступы
-            let safeArea = view.safeAreaInsets
+            let safeArea = self.view.safeAreaInsets
             webViewWrapper.setContentInsets(top: safeArea.top, bottom: safeArea.bottom)
         }
     }
@@ -103,7 +104,7 @@ class WebViewHostingController<Content: View>: UIHostingController<Content> {
     // Обновляем отступы в WebView при изменении размеров
     private func updateWebViewInsets() {
         view.findWebViewControllerWrapper { webViewWrapper in
-            let safeArea = view.safeAreaInsets
+            let safeArea = self.view.safeAreaInsets
             webViewWrapper.setContentInsets(top: safeArea.top, bottom: safeArea.bottom)
         }
     }
