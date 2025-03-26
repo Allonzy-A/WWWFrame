@@ -142,6 +142,47 @@ func application(_ application: UIApplication, didRegisterForRemoteNotifications
      - Normal app operations resume
      - WebView is not used
 
+## Отладка проблем с APNS токеном
+
+Если у вас возникают проблемы с получением APNS токена, вы можете использовать отладочные утилиты:
+
+```swift
+import WWWFrame
+
+// Проверить, зарегистрировано ли приложение для пуш-уведомлений
+let isRegistered = WWWFrameDebugUtils.isRegisteredForRemoteNotifications()
+print("Приложение зарегистрировано для пуш-уведомлений: \(isRegistered)")
+
+// Получить текущий APNS токен (если он есть)
+if let token = WWWFrameDebugUtils.getCurrentAPNSToken() {
+    print("Текущий APNS токен: \(token)")
+} else {
+    print("APNS токен не получен")
+}
+
+// В крайнем случае, запросить регистрацию вручную
+WWWFrameDebugUtils.requestRemoteNotificationsRegistration()
+```
+
+Возможные причины проблем с получением APNS токена:
+
+1. Приложение не запрашивает/не получает разрешение на пуш-уведомления
+2. Метод AppDelegate.application(_:didRegisterForRemoteNotificationsWithDeviceToken:) не вызывается
+3. AppDelegate не передает токен во фреймворк
+
+Если приложение получило APNS токен, но для каких-то причин он не передается в фреймворк, вы можете установить его вручную:
+
+```swift
+func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+    // Записываем в лог для отладки
+    let tokenString = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
+    print("APNS токен получен: \(tokenString)")
+    
+    // Передаем токен вручную
+    WWWFrameDebugUtils.manuallySetAPNSToken(deviceToken)
+}
+```
+
 ## License
 
 This framework is released under the MIT License. See LICENSE file for details. 

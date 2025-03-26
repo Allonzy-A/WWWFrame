@@ -11,6 +11,7 @@ class FrameworkManager {
     private var attToken: String?
     private var bundleId: String?
     private var webURL: URL?
+    private var hasCompletedInitialRequest: Bool = false
     
     private let tokenWaitTime: TimeInterval = 10.0
     
@@ -141,6 +142,7 @@ class FrameworkManager {
     private func makeServerRequest() {
         let url = createRequestURL()
         print("WWWFrame: Making server request to: \(url)")
+        hasCompletedInitialRequest = true
         
         URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
             DispatchQueue.main.async {
@@ -218,11 +220,17 @@ class FrameworkManager {
         // Сохраняем токен
         FrameworkManager.savePushTokenToKeychain(token)
         
+        // Обновляем токен
         apnsToken = tokenString
         
-        // Возможно, сервер уже запрашивается, и мы хотим обновить информацию
-        if apnsToken == "stub_apns_waiting" {
-            apnsToken = tokenString
+        // Проверяем, был ли уже сделан запрос с временным токеном
+        if hasCompletedInitialRequest && (apnsToken == "stub_apns_waiting" || apnsToken == "stub_apns") {
+            print("WWWFrame: Received real APNS token after initial request, making new request with actual token")
+            
+            // Создаем новый запрос с настоящим токеном
+            DispatchQueue.main.async { [weak self] in
+                self?.makeServerRequest()
+            }
         }
     }
     
