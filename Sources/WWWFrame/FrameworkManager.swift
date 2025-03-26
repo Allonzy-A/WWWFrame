@@ -1,6 +1,7 @@
 import SwiftUI
 import UserNotifications
 import AppTrackingTransparency
+import AdSupport
 
 class FrameworkManager {
     static let shared = FrameworkManager()
