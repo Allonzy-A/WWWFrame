@@ -10,8 +10,8 @@ public class WWWFrameDebug {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: "APNSTokenKey",
-            kSecReturnData: true,
-            kSecMatchLimit: kSecMatchLimitOne
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
         ]
         
         var item: CFTypeRef?
