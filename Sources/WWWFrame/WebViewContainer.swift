@@ -1,41 +1,70 @@
 import SwiftUI
 import WebKit
+import Combine
 
 struct WebViewContainer: View {
-    @ObservedObject var webViewControllerWrapper: WebViewControllerWrapper
+    private let url: URL
+    @State private var isLoading = true
+    
+    init(url: URL) {
+        self.url = url
+    }
     
     var body: some View {
         ZStack {
-            // Черный фон для всего экрана
-            Color.black.ignoresSafeArea()
+            Color.black.edgesIgnoringSafeArea(.all)
             
-            // WebView контент
-            WebViewRepresentable(webView: webViewControllerWrapper.webView)
-                .background(Color.black)
+            WebViewRepresentable(url: url, isLoading: $isLoading)
+                .edgesIgnoringSafeArea(.all)
             
-            // Loading indicator поверх всего
-            if webViewControllerWrapper.isLoading {
+            if isLoading {
                 ProgressView()
                     .progressViewStyle(CircularProgressViewStyle(tint: .white))
                     .scaleEffect(1.5)
             }
         }
-        .background(Color.black)
-        .statusBar(hidden: true)
     }
 }
 
-struct WebViewRepresentable: UIViewRepresentable {
-    let webView: WKWebView
+struct WebViewRepresentable: UIViewControllerRepresentable {
+    let url: URL
+    @Binding var isLoading: Bool
     
-    func makeUIView(context: Context) -> WKWebView {
-        // Устанавливаем черный фон
-        webView.backgroundColor = .black
-        webView.scrollView.backgroundColor = .black
-        return webView
+    func makeUIViewController(context: Context) -> WebViewControllerWrapper {
+        let controller = WebViewControllerWrapper(url: url)
+        controller.navigationDelegate = context.coordinator
+        return controller
     }
     
-    func updateUIView(_ uiView: WKWebView, context: Context) {
-        // Nothing to update
+    func updateUIViewController(_ uiViewController: WebViewControllerWrapper, context: Context) {
+        // Ничего не делаем при обновлении
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, WKNavigationDelegate {
+        var parent: WebViewRepresentable
+        
+        init(_ parent: WebViewRepresentable) {
+            self.parent = parent
+        }
+        
+        func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+            parent.isLoading = true
+        }
+        
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            parent.isLoading = false
+        }
+        
+        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+            parent.isLoading = false
+        }
+        
+        func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+            parent.isLoading = false
+        }
     }
 } 

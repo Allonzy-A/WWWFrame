@@ -1,93 +1,74 @@
-import SwiftUI
+import UIKit
 import WebKit
 
-class WebViewControllerWrapper: NSObject, ObservableObject, WKNavigationDelegate, WKUIDelegate {
-    @Published var url: URL
-    @Published var isLoading: Bool = true
-    
-    let webView: WKWebView
+class WebViewControllerWrapper: UIViewController, WKNavigationDelegate {
+    var webView: WKWebView!
+    private var url: URL
+    var navigationDelegate: WKNavigationDelegate?
     
     init(url: URL) {
         self.url = url
+        super.init(nibName: nil, bundle: nil)
+    }
+    
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
+    override func viewDidLoad() {
+        super.viewDidLoad()
         
-        // Настраиваем WKWebView с базовыми параметрами
+        setupWebView()
+        view.backgroundColor = .black
+    }
+    
+    private func setupWebView() {
+        // Настройка WKWebView
         let configuration = WKWebViewConfiguration()
-        configuration.websiteDataStore = .default()
+        configuration.defaultWebpagePreferences.allowsContentJavaScript = true
         configuration.allowsInlineMediaPlayback = true
+        configuration.mediaTypesRequiringUserActionForPlayback = []
         
+        // Создаем WebView
         webView = WKWebView(frame: .zero, configuration: configuration)
-        
-        // Устанавливаем черный цвет для фона
+        webView.scrollView.bounces = false
+        webView.navigationDelegate = self
         webView.backgroundColor = .black
+        webView.scrollView.backgroundColor = .black
         webView.isOpaque = false
         
-        super.init()
+        // Добавляем к view
+        view.addSubview(webView)
         
-        webView.navigationDelegate = self
-        webView.uiDelegate = self
-        webView.allowsBackForwardNavigationGestures = true
+        // Настраиваем отступы и constraints
+        webView.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            webView.topAnchor.constraint(equalTo: view.topAnchor),
+            webView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            webView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            webView.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+        ])
         
-        // Настройка стиля WebView
-        webView.scrollView.backgroundColor = .black
-        
-        // Настраиваем WebView для лучшего отображения
-        configureWebView()
-        
-        // Загрузка URL
-        loadURL()
-    }
-    
-    func loadURL() {
-        let request = URLRequest(url: url, cachePolicy: .returnCacheDataElseLoad)
+        // Загружаем URL
+        let request = URLRequest(url: url)
         webView.load(request)
-    }
-    
-    // Настройка WebView для лучшего отображения
-    private func configureWebView() {
-        // Отключаем автоматические отступы, т.к. теперь используем фиксированные
-        webView.scrollView.contentInsetAdjustmentBehavior = .never
-        webView.scrollView.contentInset = .zero
-        webView.scrollView.scrollIndicatorInsets = .zero
-        
-        // Настраиваем свойства WebView
-        webView.clipsToBounds = true
-        webView.layer.masksToBounds = true
-        
-        // Отключаем прокрутку за пределы контента для плавного опыта
-        webView.scrollView.bounces = false
-        webView.scrollView.alwaysBounceVertical = false
     }
     
     // MARK: - WKNavigationDelegate
     
+    func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+        navigationDelegate?.webView?(webView, didStartProvisionalNavigation: navigation)
+    }
+    
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        isLoading = false
-        print("WWWFrame: WebView finished loading: \(webView.url?.absoluteString ?? "unknown")")
+        navigationDelegate?.webView?(webView, didFinish: navigation)
     }
     
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-        isLoading = false
-        print("WWWFrame: WebView failed to load: \(error.localizedDescription)")
+        navigationDelegate?.webView?(webView, didFail: navigation, withError: error)
     }
     
-    // MARK: - WKUIDelegate
-    
-    // Handle alerts
-    func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
-        let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in
-            completionHandler()
-        })
-        
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-           let rootViewController = windowScene.windows.first?.rootViewController {
-            rootViewController.present(alert, animated: true)
-        }
-    }
-    
-    // Handle camera permission requests
-    func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType, decisionHandler: @escaping (WKPermissionDecision) -> Void) {
-        print("WWWFrame: Camera permission requested")
-        decisionHandler(.prompt)
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        navigationDelegate?.webView?(webView, didFailProvisionalNavigation: navigation, withError: error)
     }
 } 

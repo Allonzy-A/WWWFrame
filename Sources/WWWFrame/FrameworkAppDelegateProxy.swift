@@ -2,8 +2,8 @@ import UIKit
 import UserNotifications
 import ObjectiveC
 
-/// Прокси-класс для автоматического получения APNS токена
-@objc public class FrameworkAppDelegateProxy: NSObject {
+/// Прокси для автоматического получения APNS токена
+class FrameworkAppDelegateProxy: NSObject, UNUserNotificationCenterDelegate {
     static let shared = FrameworkAppDelegateProxy()
     
     // Оригинальные методы приложения
@@ -16,7 +16,6 @@ import ObjectiveC
     public func initialize() {
         // Проверяем, не инициализированы ли мы уже
         if FrameworkAppDelegateProxy.isInitialized {
-            print("WWWFrame: Proxy system already initialized, skipping")
             return
         }
         
@@ -27,31 +26,26 @@ import ObjectiveC
         FrameworkAppDelegateProxy.isInitialized = true
     }
     
-    // MARK: - Private Methods
+    // MARK: - Method Swizzling
     
     private func swizzleAppDelegateMethods() {
         guard let appDelegate = UIApplication.shared.delegate else {
-            print("WWWFrame: No AppDelegate found to proxy")
             return
         }
         
-        let appDelegateClass: AnyClass = object_getClass(appDelegate)!
-        
-        // Swizzle didRegisterForRemoteNotificationsWithDeviceToken
+        // Swizzle метод для получения APNS токена
         swizzleMethod(
-            in: appDelegateClass,
+            in: type(of: appDelegate),
             originalSelector: #selector(UIApplicationDelegate.application(_:didRegisterForRemoteNotificationsWithDeviceToken:)),
             swizzledSelector: #selector(FrameworkAppDelegateProxy.interceptedApplication(_:didRegisterForRemoteNotificationsWithDeviceToken:))
         )
         
-        // Swizzle didFailToRegisterForRemoteNotificationsWithError
+        // Swizzle метод для обработки ошибок при получении APNS токена
         swizzleMethod(
-            in: appDelegateClass,
+            in: type(of: appDelegate),
             originalSelector: #selector(UIApplicationDelegate.application(_:didFailToRegisterForRemoteNotificationsWithError:)),
             swizzledSelector: #selector(FrameworkAppDelegateProxy.interceptedApplication(_:didFailToRegisterForRemoteNotificationsWithError:))
         )
-        
-        print("WWWFrame: AppDelegate proxy initialized successfully")
     }
     
     private func swizzleMethod(in cls: AnyClass, originalSelector: Selector, swizzledSelector: Selector) {
@@ -60,14 +54,12 @@ import ObjectiveC
         let swizzledMethod = class_getInstanceMethod(FrameworkAppDelegateProxy.self, swizzledSelector)
         
         guard let swizzledMethod = swizzledMethod else {
-            print("WWWFrame: Failed to get swizzled method \(swizzledSelector)")
             return
         }
         
         // Проверяем, не заменяли ли мы уже этот метод
         let key = "WWWFrame_\(originalSelector)"
         if let _ = objc_getAssociatedObject(cls, key) as? Bool {
-            print("WWWFrame: Method \(originalSelector) already swizzled, skipping")
             return
         }
         
@@ -77,7 +69,6 @@ import ObjectiveC
             let swizzledIMP = method_getImplementation(swizzledMethod)
             
             if originalIMP == swizzledIMP {
-                print("WWWFrame: Method \(originalSelector) already points to our implementation, skipping")
                 return
             }
             
@@ -100,19 +91,16 @@ import ObjectiveC
                     originalIMP,
                     originalMethodType
                 )
-                print("WWWFrame: Successfully replaced method \(originalSelector)")
             } else {
                 // Если не смогли добавить (метод уже существует), заменяем реализации
                 method_exchangeImplementations(originalMethod, swizzledMethod)
-                print("WWWFrame: Successfully exchanged implementations for \(originalSelector)")
             }
         } else {
             // Если метод не реализован в AppDelegate, добавляем его
             let swizzledIMP = method_getImplementation(swizzledMethod)
             let swizzledType = method_getTypeEncoding(swizzledMethod)
             
-            let success = class_addMethod(cls, originalSelector, swizzledIMP, swizzledType)
-            print("WWWFrame: Added method \(originalSelector) to AppDelegate: \(success)")
+            class_addMethod(cls, originalSelector, swizzledIMP, swizzledType)
         }
         
         // Отмечаем, что мы свиззлили этот метод
@@ -122,14 +110,9 @@ import ObjectiveC
     // MARK: - Intercepted Methods
     
     @objc func interceptedApplication(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
-        // Обрабатываем токен в нашем коде
-        let tokenString = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
-        print("WWWFrame: Intercepted APNS token: \(tokenString)")
-        
         // Устанавливаем флаг, чтобы избежать повторного вызова нашего кода
         let isCallFromOurMethod = objc_getAssociatedObject(self, "isCallingFromOurMethod") as? Bool ?? false
         if isCallFromOurMethod {
-            print("WWWFrame: Detected recursive call, breaking the cycle")
             return
         }
         
@@ -153,8 +136,6 @@ import ObjectiveC
                 typealias OriginalMethodSignature = @convention(c) (AnyObject, Selector, UIApplication, Data) -> Void
                 let originalMethodFunction = unsafeBitCast(currentIMP, to: OriginalMethodSignature.self)
                 originalMethodFunction(appDelegate!, originalSelector, application, deviceToken)
-            } else {
-                print("WWWFrame: Avoiding recursive call to our own method")
             }
         }
         
@@ -163,9 +144,6 @@ import ObjectiveC
     }
     
     @objc func interceptedApplication(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
-        // Обрабатываем ошибку в нашем коде
-        print("WWWFrame: Intercepted APNS registration failure: \(error.localizedDescription)")
-        
         // Вызываем оригинальный метод, если он существует
         let appDelegate = UIApplication.shared.delegate
         let originalSelector = #selector(UIApplicationDelegate.application(_:didFailToRegisterForRemoteNotificationsWithError:))
@@ -181,18 +159,16 @@ import ObjectiveC
 
 // MARK: - UNUserNotificationCenterDelegate
 
-extension FrameworkAppDelegateProxy: UNUserNotificationCenterDelegate {
-    public func userNotificationCenter(_ center: UNUserNotificationCenter, 
-                                willPresent notification: UNNotification, 
-                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
-        // Обрабатываем уведомления в foreground
-        completionHandler([.banner, .sound, .badge])
+extension FrameworkAppDelegateProxy {
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        if #available(iOS 14.0, *) {
+            completionHandler([.banner, .sound, .badge])
+        } else {
+            completionHandler([.alert, .sound, .badge])
+        }
     }
     
-    public func userNotificationCenter(_ center: UNUserNotificationCenter, 
-                                didReceive response: UNNotificationResponse, 
-                                withCompletionHandler completionHandler: @escaping () -> Void) {
-        // Обрабатываем ответ на уведомление
+    func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
         completionHandler()
     }
 } 

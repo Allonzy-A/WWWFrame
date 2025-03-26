@@ -21,21 +21,21 @@ class WebViewHostingController<Content: View>: UIHostingController<Content> {
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        // Настройка для черной безопасной области
+        // Устанавливаем черный цвет фона
         view.backgroundColor = .black
+        self.modalPresentationCapturesStatusBarAppearance = true
         
-        // Важно для корректной работы с SafeArea
-        overrideUserInterfaceStyle = .dark
-        
-        // Настраиваем WebView для правильных отступов
         findAndConfigureWebView()
     }
     
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
-        
-        // Обновляем фиксированные отступы
         updateFixedInsets()
+    }
+    
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        setNeedsStatusBarAppearanceUpdate()
     }
     
     // Ищем WebViewControllerWrapper в иерархии вью и настраиваем отступы
@@ -103,11 +103,9 @@ class WebViewHostingController<Content: View>: UIHostingController<Content> {
         let safeArea = view.safeAreaInsets
         
         // Увеличиваем верхний отступ для обхода камеры
-        // Используем еще больший отступ (45pt), чтобы гарантированно обойти камеру
         let topInset = safeArea.top + 45
         
-        // Нижний отступ делаем минимальным, чтобы увеличить полезную площадь
-        // Используем фиксированную высоту 5pt для тонкой полосы
+        // Нижний отступ делаем минимальным
         let bottomInset = 5.0
         
         // Устанавливаем ограничения
@@ -131,17 +129,14 @@ class WebViewHostingController<Content: View>: UIHostingController<Content> {
             bottomSpacer.heightAnchor.constraint(equalToConstant: bottomInset)
         ])
         
-        // Принудительно обновляем layout
         view.layoutIfNeeded()
     }
     
-    // Обработка поворота экрана
     override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
         super.viewWillTransition(to: size, with: coordinator)
         
         coordinator.animate(alongsideTransition: { _ in
-            // Обновляем отступы при повороте
-            self.updateFixedInsets()
+            self.view.setNeedsLayout()
         })
     }
 }
@@ -150,20 +145,17 @@ class WebViewHostingController<Content: View>: UIHostingController<Content> {
 extension UIView {
     func findWebViewControllerWrapper(completion: @escaping (WebViewControllerWrapper) -> Void) {
         for subview in subviews {
-            // Проверяем, является ли subview WebView
             if let webView = subview as? WKWebView,
                let wrapper = findWrapper(for: webView) {
                 completion(wrapper)
                 return
             }
             
-            // Рекурсивно ищем в дочерних subview
             subview.findWebViewControllerWrapper(completion: completion)
         }
     }
     
     private func findWrapper(for webView: WKWebView) -> WebViewControllerWrapper? {
-        // Просматриваем родительскую иерархию для поиска WebViewControllerWrapper
         var currentView: UIView? = webView
         while currentView != nil {
             if let parent = currentView?.superview?.next as? WebViewControllerWrapper {
