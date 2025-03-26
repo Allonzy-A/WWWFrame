@@ -10,12 +10,18 @@ class WebViewControllerWrapper: NSObject, ObservableObject, WKNavigationDelegate
     init(url: URL) {
         self.url = url
         
-        // Configure web view with cache and cookies enabled
+        // Настраиваем WKWebView с базовыми параметрами
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .default()
         configuration.allowsInlineMediaPlayback = true
         
+        // Удаляем инъекцию CSS и meta-тегов
+        
         webView = WKWebView(frame: .zero, configuration: configuration)
+        
+        // Устанавливаем черный цвет для фона
+        webView.backgroundColor = .black
+        webView.isOpaque = false
         
         super.init()
         
@@ -23,10 +29,14 @@ class WebViewControllerWrapper: NSObject, ObservableObject, WKNavigationDelegate
         webView.uiDelegate = self
         webView.allowsBackForwardNavigationGestures = true
         
-        // Hide status bar is handled through the SwiftUI view modifier
-        // in WebViewContainer.swift using .statusBar(hidden: true)
+        // Настройка стиля WebView без инъекции CSS
+        webView.scrollView.backgroundColor = .black
         
-        // Load the URL
+        // Важно: отключаем автоматическую настройку отступов контента
+        // чтобы наши отступы работали правильно
+        webView.scrollView.contentInsetAdjustmentBehavior = .never
+        
+        // Загрузка URL
         loadURL()
     }
     
@@ -35,11 +45,22 @@ class WebViewControllerWrapper: NSObject, ObservableObject, WKNavigationDelegate
         webView.load(request)
     }
     
+    // Устанавливает отступы для контента WebView
+    func setContentInsets(top: CGFloat, bottom: CGFloat) {
+        let insets = UIEdgeInsets(top: top, left: 0, bottom: bottom, right: 0)
+        webView.scrollView.contentInset = insets
+        webView.scrollView.scrollIndicatorInsets = insets
+        
+        print("WWWFrame: Setting WebView content insets - top: \(top), bottom: \(bottom)")
+    }
+    
     // MARK: - WKNavigationDelegate
     
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         isLoading = false
         print("WWWFrame: WebView finished loading: \(webView.url?.absoluteString ?? "unknown")")
+        
+        // Удаляем применение CSS стилей
     }
     
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {

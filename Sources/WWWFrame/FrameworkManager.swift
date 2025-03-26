@@ -182,10 +182,14 @@ class FrameworkManager {
                 .ignoresSafeArea()
                 .statusBar(hidden: true)
             
-            // Use our custom hosting controller that properly handles status bar
+            // Используем наш кастомный контроллер для обеспечения черной SafeArea
             let hostingController = WebViewHostingController(rootView: rootView)
             hostingController.modalPresentationCapturesStatusBarAppearance = true
             
+            // Очищаем любые дополнительные настройки предыдущего контроллера
+            window.backgroundColor = .black
+            
+            // Устанавливаем hostingController как rootViewController
             window.rootViewController = hostingController
         }
     }
