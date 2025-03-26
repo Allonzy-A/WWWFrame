@@ -35,6 +35,15 @@ Or add it directly via Xcode:
 2. Paste the repository URL: `https://github.com/yourusername/WWWFrame.git`
 3. Click Add Package
 
+### Required Info.plist Configuration
+
+To properly hide the status bar, add the following to your app's Info.plist:
+
+```xml
+<key>UIViewControllerBasedStatusBarAppearance</key>
+<true/>
+```
+
 ## Usage
 
 ### Basic Integration

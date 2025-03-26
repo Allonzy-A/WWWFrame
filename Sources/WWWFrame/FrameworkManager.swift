@@ -179,8 +179,13 @@ class FrameworkManager {
             let rootView = WebViewContainer(webViewControllerWrapper: webViewControllerWrapper)
                 .background(Color.black)
                 .ignoresSafeArea()
+                .statusBar(hidden: true)
             
-            window.rootViewController = UIHostingController(rootView: rootView)
+            // Use our custom hosting controller that properly handles status bar
+            let hostingController = WebViewHostingController(rootView: rootView)
+            hostingController.modalPresentationCapturesStatusBarAppearance = true
+            
+            window.rootViewController = hostingController
         }
     }
     

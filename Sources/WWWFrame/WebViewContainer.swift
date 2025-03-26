@@ -19,10 +19,14 @@ struct WebViewContainer: View {
         }
         .background(Color.black)
         .statusBar(hidden: true)
-        .onAppear {
-            // Force status bar to be hidden
-            UIApplication.shared.isStatusBarHidden = true
-        }
+    }
+}
+
+// Status bar configurator for iOS 15+
+struct StatusBarHiddenModifier: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .statusBar(hidden: true)
     }
 }
 

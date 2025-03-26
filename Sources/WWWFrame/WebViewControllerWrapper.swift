@@ -23,10 +23,8 @@ class WebViewControllerWrapper: NSObject, ObservableObject, WKNavigationDelegate
         webView.uiDelegate = self
         webView.allowsBackForwardNavigationGestures = true
         
-        // Hide status bar
-        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
-            windowScene.statusBarManager?.isStatusBarHidden = true
-        }
+        // Hide status bar is handled through the SwiftUI view modifier
+        // in WebViewContainer.swift using .statusBar(hidden: true)
         
         // Load the URL
         loadURL()
