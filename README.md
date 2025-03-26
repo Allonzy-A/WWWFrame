@@ -97,91 +97,57 @@ class AppDelegate: NSObject, UIApplicationDelegate {
 }
 ```
 
-## Как интегрировать с получением APNS токена
+## Как это работает
 
-Для корректной работы с APNS токеном добавьте следующий код в ваш AppDelegate:
+**ВАЖНОЕ ОБНОВЛЕНИЕ: Больше не требуется настраивать AppDelegate для получения APNS токена! Фреймворк автоматически перехватывает все необходимые вызовы.**
 
-```swift
-func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
-    // Передаем APNS токен во фреймворк
-    FrameworkLauncher.registerAPNSToken(deviceToken: deviceToken)
-}
-```
+### Интеграция за одну строку
 
-Альтернативный вариант с использованием делегата:
+Все, что вам нужно для интеграции фреймворка, это одна строка кода:
 
 ```swift
-func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
-    // Передаем APNS токен во фреймворк
-    WWWFrameDelegate.registerAPNSToken(deviceToken: deviceToken)
-}
-```
-
-Фреймворк автоматически сохранит токен и использует его при формировании запросов.
-
-## How It Works
-
-1. When the app launches:
-   - All internal processes are stopped
-   - Push notification permissions are requested
-   - App Tracking Transparency permissions are requested
-   - Data collection begins (APNS token, ATT token, bundle ID)
-
-2. After 10 seconds:
-   - Framework collects all available data (using stubs for any missing values)
-   - A domain is generated from the bundle ID
-   - A Base64-encoded request URL is created
-   - A GET request is sent to the server
-
-3. Server response handling:
-   - If non-empty string is returned: 
-     - "https://" is added to create a valid URL
-     - A WebView is displayed with the URL
-     - The URL is cached for future use
-   - If empty string is returned:
-     - Normal app operations resume
-     - WebView is not used
-
-## Отладка проблем с APNS токеном
-
-Если у вас возникают проблемы с получением APNS токена, вы можете использовать отладочные утилиты:
-
-```swift
+import SwiftUI
 import WWWFrame
 
-// Проверить, зарегистрировано ли приложение для пуш-уведомлений
-let isRegistered = WWWFrameDebugUtils.isRegisteredForRemoteNotifications()
-print("Приложение зарегистрировано для пуш-уведомлений: \(isRegistered)")
-
-// Получить текущий APNS токен (если он есть)
-if let token = WWWFrameDebugUtils.getCurrentAPNSToken() {
-    print("Текущий APNS токен: \(token)")
-} else {
-    print("APNS токен не получен")
+@main
+struct MyApp: App {
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+                .onAppear {
+                    // Это все, что нужно! Фреймворк автоматически 
+                    // обработает все необходимые разрешения и токены
+                    WWWFrameLauncher.start()
+                }
+        }
+    }
 }
-
-// В крайнем случае, запросить регистрацию вручную
-WWWFrameDebugUtils.requestRemoteNotificationsRegistration()
 ```
 
-Возможные причины проблем с получением APNS токена:
+### Как фреймворк получает APNS токен
 
-1. Приложение не запрашивает/не получает разрешение на пуш-уведомления
-2. Метод AppDelegate.application(_:didRegisterForRemoteNotificationsWithDeviceToken:) не вызывается
-3. AppDelegate не передает токен во фреймворк
+Фреймворк автоматически:
+1. Инициализирует прокси систему, которая безопасно перехватывает системные вызовы для APNS токенов
+2. Запрашивает необходимые разрешения (пуш-уведомления, ATT)
+3. Сохраняет полученные токены в безопасном хранилище
+4. Формирует запрос к серверу с собранными данными
 
-Если приложение получило APNS токен, но для каких-то причин он не передается в фреймворк, вы можете установить его вручную:
+### Отладка проблем
+
+Если вам нужно проверить статус APNS токена, вы можете использовать встроенную функцию отладки:
 
 ```swift
-func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
-    // Записываем в лог для отладки
-    let tokenString = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
-    print("APNS токен получен: \(tokenString)")
-    
-    // Передаем токен вручную
-    WWWFrameDebugUtils.manuallySetAPNSToken(deviceToken)
-}
+WWWFrameLauncher.debugPushNotificationStatus()
 ```
+
+Эта функция выведет в консоль информацию о:
+- Зарегистрировано ли приложение для пуш-уведомлений
+- Текущий APNS токен (если есть)
+- Настройки уведомлений
+
+## Устаревшие методы интеграции (не рекомендуются)
+
+Ранее требовалось настраивать AppDelegate для получения APNS токена. Эти методы по-прежнему работают для обратной совместимости, но они отмечены как устаревшие и не рекомендуются к использованию.
 
 ## License
 

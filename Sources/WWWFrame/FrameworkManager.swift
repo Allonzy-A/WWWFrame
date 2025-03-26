@@ -3,6 +3,29 @@ import UserNotifications
 import AppTrackingTransparency
 import AdSupport
 import Security
+import ObjectiveC
+
+// Объявляем AppDelegate внутри фреймворка для перехвата системных событий
+class WWWFrameAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+    static let shared = WWWFrameAppDelegate()
+    
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        let tokenString = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
+        print("WWWFrame: APNS token received from system: \(tokenString)")
+        
+        // Передаем токен в менеджер
+        FrameworkManager.shared.setAPNSToken(deviceToken)
+    }
+    
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        print("WWWFrame: Failed to register for remote notifications: \(error.localizedDescription)")
+    }
+    
+    // Для обработки нотификаций в foreground
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .sound, .badge])
+    }
+}
 
 class FrameworkManager {
     static let shared = FrameworkManager()
@@ -20,33 +43,48 @@ class FrameworkManager {
     func launch() {
         print("WWWFrame: Launch initiated")
         
-        // Stop all internal processes
-        // This is a placeholder for app-specific logic
+        // Останавливаем все внутренние процессы
         print("WWWFrame: Stopping internal processes")
         
-        // Request push notification permission
+        // Инициализируем автоматическое получение APNS токена
+        initializeProxySystem()
+        
+        // Запрашиваем разрешения на пуш-уведомления
         requestPushNotificationPermission()
         
-        // Request app tracking transparency permission
+        // Запрашиваем разрешения на трекинг
         if #available(iOS 14.5, *) {
             requestTrackingPermission()
         } else {
             attToken = "stub_att"
         }
         
-        // Get bundle ID
+        // Получаем bundle ID
         bundleId = getBundleId()
         
-        // Check if we have a cached URL
+        // Проверяем, есть ли сохраненный URL
         if let cachedURL = UserDefaults.standard.string(forKey: "WWWFrame_CachedURL") {
             print("WWWFrame: Found cached URL: \(cachedURL)")
             showWebView(with: URL(string: cachedURL)!)
             return
         }
         
-        // Wait for data collection and make server request
+        // Ждем сбора данных и делаем запрос к серверу
         DispatchQueue.main.asyncAfter(deadline: .now() + tokenWaitTime) { [weak self] in
             self?.makeServerRequest()
+        }
+    }
+    
+    // Инициализация системы перехвата APNS токена
+    private func initializeProxySystem() {
+        // Инициализируем прокси для автоматического получения APNS токена
+        FrameworkAppDelegateProxy.shared.initialize()
+        print("WWWFrame: Proxy system for APNS token initialized")
+        
+        // Пытаемся получить сохраненный токен из Keychain
+        if let tokenData = FrameworkManager.getPushTokenFromKeychain() {
+            self.setAPNSToken(tokenData)
+            print("WWWFrame: Restored APNS token from Keychain")
         }
     }
     
