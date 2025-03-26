@@ -182,13 +182,12 @@ class FrameworkManager {
             
             let rootView = WebViewContainer(webViewControllerWrapper: webViewControllerWrapper)
                 .background(Color.black)
-                .ignoresSafeArea()
                 .statusBar(hidden: true)
             
-            // Используем наш кастомный контроллер для работы с SafeArea через отступы
+            // Используем наш кастомный контроллер для фиксированных отступов
             let hostingController = WebViewHostingController(rootView: rootView)
-            hostingController.modalPresentationCapturesStatusBarAppearance = true
             hostingController.view.backgroundColor = .black
+            hostingController.modalPresentationCapturesStatusBarAppearance = true
             
             // Устанавливаем hostingController как rootViewController
             window.rootViewController = hostingController

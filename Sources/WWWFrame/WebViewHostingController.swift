@@ -2,6 +2,10 @@ import SwiftUI
 import WebKit
 
 class WebViewHostingController<Content: View>: UIHostingController<Content> {
+    // Контейнеры для фиксированных отступов
+    private var topSpacerView: UIView?
+    private var bottomSpacerView: UIView?
+    
     override var prefersStatusBarHidden: Bool {
         return true
     }
@@ -30,39 +34,105 @@ class WebViewHostingController<Content: View>: UIHostingController<Content> {
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         
-        // Обновляем отступы в WebView при изменении размеров
-        updateWebViewInsets()
+        // Обновляем фиксированные отступы
+        updateFixedInsets()
     }
     
     // Ищем WebViewControllerWrapper в иерархии вью и настраиваем отступы
     private func findAndConfigureWebView() {
         view.findWebViewControllerWrapper { webViewWrapper in
-            // Устанавливаем начальные отступы
-            let safeArea = self.view.safeAreaInsets
+            let webView = webViewWrapper.webView
             
-            // Увеличиваем верхний отступ для обхода камеры, уменьшаем нижний для большей полезной площади
-            let topInset = safeArea.top + 20 // Добавляем дополнительные 20pt сверху для камеры
-            let bottomInset = max(safeArea.bottom - 10, 0) // Уменьшаем нижний отступ на 10pt, но не меньше 0
+            // Удаляем WebView из текущего superview
+            webView.removeFromSuperview()
             
-            webViewWrapper.setContentInsets(top: topInset, bottom: bottomInset)
+            // Создаем контейнеры для фиксированных отступов
+            self.createFixedInsets(webView: webView)
             
             // Устанавливаем черный цвет для фона WebView
-            webViewWrapper.webView.backgroundColor = .black
-            webViewWrapper.webView.scrollView.backgroundColor = .black
+            webView.backgroundColor = .black
+            webView.scrollView.backgroundColor = .black
+            
+            // Отключаем автоматическую настройку отступов
+            webView.scrollView.contentInsetAdjustmentBehavior = .never
+            webView.scrollView.contentInset = .zero
         }
     }
     
-    // Обновляем отступы в WebView при изменении размеров
-    private func updateWebViewInsets() {
-        view.findWebViewControllerWrapper { webViewWrapper in
-            let safeArea = self.view.safeAreaInsets
-            
-            // Увеличиваем верхний отступ для обхода камеры, уменьшаем нижний для большей полезной площади
-            let topInset = safeArea.top + 20 // Добавляем дополнительные 20pt сверху для камеры
-            let bottomInset = max(safeArea.bottom - 10, 0) // Уменьшаем нижний отступ на 10pt, но не меньше 0
-            
-            webViewWrapper.setContentInsets(top: topInset, bottom: bottomInset)
+    // Создаем фиксированные отступы для WebView
+    private func createFixedInsets(webView: WKWebView) {
+        // Создаем верхний и нижний отступы
+        let topSpacer = UIView()
+        topSpacer.backgroundColor = .black
+        topSpacer.translatesAutoresizingMaskIntoConstraints = false
+        
+        let bottomSpacer = UIView()
+        bottomSpacer.backgroundColor = .black
+        bottomSpacer.translatesAutoresizingMaskIntoConstraints = false
+        
+        // Сохраняем ссылки
+        self.topSpacerView = topSpacer
+        self.bottomSpacerView = bottomSpacer
+        
+        // Устанавливаем tag для WebView чтобы его можно было легко найти
+        webView.tag = 100
+        webView.translatesAutoresizingMaskIntoConstraints = false
+        
+        // Добавляем элементы на основное представление
+        view.addSubview(topSpacer)
+        view.addSubview(webView)
+        view.addSubview(bottomSpacer)
+        
+        // Устанавливаем начальные размеры отступов
+        updateFixedInsets()
+    }
+    
+    // Обновляем размеры фиксированных отступов
+    private func updateFixedInsets() {
+        guard let topSpacer = topSpacerView, 
+              let bottomSpacer = bottomSpacerView,
+              let webView = view.viewWithTag(100) as? WKWebView else {
+            return
         }
+        
+        // Удаляем все существующие ограничения для спейсеров и webView
+        NSLayoutConstraint.deactivate(topSpacer.constraints)
+        NSLayoutConstraint.deactivate(bottomSpacer.constraints)
+        NSLayoutConstraint.deactivate(webView.constraints)
+        
+        let safeArea = view.safeAreaInsets
+        
+        // Увеличиваем верхний отступ для обхода камеры
+        // Используем еще больший отступ (45pt), чтобы гарантированно обойти камеру
+        let topInset = safeArea.top + 45
+        
+        // Нижний отступ делаем минимальным, чтобы увеличить полезную площадь
+        // Используем фиксированную высоту 5pt для тонкой полосы
+        let bottomInset = 5.0
+        
+        // Устанавливаем ограничения
+        NSLayoutConstraint.activate([
+            // Верхний отступ
+            topSpacer.topAnchor.constraint(equalTo: view.topAnchor),
+            topSpacer.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            topSpacer.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            topSpacer.heightAnchor.constraint(equalToConstant: topInset),
+            
+            // WebView между отступами
+            webView.topAnchor.constraint(equalTo: topSpacer.bottomAnchor),
+            webView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            webView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            webView.bottomAnchor.constraint(equalTo: bottomSpacer.topAnchor),
+            
+            // Нижний отступ
+            bottomSpacer.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            bottomSpacer.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            bottomSpacer.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            bottomSpacer.heightAnchor.constraint(equalToConstant: bottomInset)
+        ])
+        
+        // Принудительно обновляем layout
+        view.layoutIfNeeded()
     }
     
     // Обработка поворота экрана
@@ -70,8 +140,8 @@ class WebViewHostingController<Content: View>: UIHostingController<Content> {
         super.viewWillTransition(to: size, with: coordinator)
         
         coordinator.animate(alongsideTransition: { _ in
-            // Обновляем отступы в WebView
-            self.updateWebViewInsets()
+            // Обновляем отступы при повороте
+            self.updateFixedInsets()
         })
     }
 }

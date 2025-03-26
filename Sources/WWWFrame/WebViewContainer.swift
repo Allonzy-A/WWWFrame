@@ -6,14 +6,12 @@ struct WebViewContainer: View {
     
     var body: some View {
         ZStack {
-            // Черный фон для всего экрана и SafeArea
-            Color.black
-                .ignoresSafeArea()
+            // Черный фон для всего экрана
+            Color.black.ignoresSafeArea()
             
-            // WebView контент без оверлеев - отступы добавляются программно
+            // WebView контент
             WebViewRepresentable(webView: webViewControllerWrapper.webView)
                 .background(Color.black)
-                .ignoresSafeArea()
             
             // Loading indicator поверх всего
             if webViewControllerWrapper.isLoading {
