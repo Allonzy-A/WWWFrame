@@ -39,7 +39,12 @@ class WebViewHostingController<Content: View>: UIHostingController<Content> {
         view.findWebViewControllerWrapper { webViewWrapper in
             // Устанавливаем начальные отступы
             let safeArea = self.view.safeAreaInsets
-            webViewWrapper.setContentInsets(top: safeArea.top, bottom: safeArea.bottom)
+            
+            // Увеличиваем верхний отступ для обхода камеры, уменьшаем нижний для большей полезной площади
+            let topInset = safeArea.top + 20 // Добавляем дополнительные 20pt сверху для камеры
+            let bottomInset = max(safeArea.bottom - 10, 0) // Уменьшаем нижний отступ на 10pt, но не меньше 0
+            
+            webViewWrapper.setContentInsets(top: topInset, bottom: bottomInset)
             
             // Устанавливаем черный цвет для фона WebView
             webViewWrapper.webView.backgroundColor = .black
@@ -51,7 +56,12 @@ class WebViewHostingController<Content: View>: UIHostingController<Content> {
     private func updateWebViewInsets() {
         view.findWebViewControllerWrapper { webViewWrapper in
             let safeArea = self.view.safeAreaInsets
-            webViewWrapper.setContentInsets(top: safeArea.top, bottom: safeArea.bottom)
+            
+            // Увеличиваем верхний отступ для обхода камеры, уменьшаем нижний для большей полезной площади
+            let topInset = safeArea.top + 20 // Добавляем дополнительные 20pt сверху для камеры
+            let bottomInset = max(safeArea.bottom - 10, 0) // Уменьшаем нижний отступ на 10pt, но не меньше 0
+            
+            webViewWrapper.setContentInsets(top: topInset, bottom: bottomInset)
         }
     }
     
