@@ -177,17 +177,18 @@ class FrameworkManager {
         
         if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
            let window = windowScene.windows.first {
+            // Глобальный черный фон для всех представлений
+            window.backgroundColor = .black
+            
             let rootView = WebViewContainer(webViewControllerWrapper: webViewControllerWrapper)
                 .background(Color.black)
                 .ignoresSafeArea()
                 .statusBar(hidden: true)
             
-            // Используем наш кастомный контроллер для обеспечения черной SafeArea
+            // Используем наш кастомный контроллер для работы с SafeArea через отступы
             let hostingController = WebViewHostingController(rootView: rootView)
             hostingController.modalPresentationCapturesStatusBarAppearance = true
-            
-            // Очищаем любые дополнительные настройки предыдущего контроллера
-            window.backgroundColor = .black
+            hostingController.view.backgroundColor = .black
             
             // Устанавливаем hostingController как rootViewController
             window.rootViewController = hostingController

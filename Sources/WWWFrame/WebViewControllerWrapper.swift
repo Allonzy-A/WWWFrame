@@ -15,8 +15,6 @@ class WebViewControllerWrapper: NSObject, ObservableObject, WKNavigationDelegate
         configuration.websiteDataStore = .default()
         configuration.allowsInlineMediaPlayback = true
         
-        // Удаляем инъекцию CSS и meta-тегов
-        
         webView = WKWebView(frame: .zero, configuration: configuration)
         
         // Устанавливаем черный цвет для фона
@@ -29,12 +27,11 @@ class WebViewControllerWrapper: NSObject, ObservableObject, WKNavigationDelegate
         webView.uiDelegate = self
         webView.allowsBackForwardNavigationGestures = true
         
-        // Настройка стиля WebView без инъекции CSS
+        // Настройка стиля WebView
         webView.scrollView.backgroundColor = .black
         
-        // Важно: отключаем автоматическую настройку отступов контента
-        // чтобы наши отступы работали правильно
-        webView.scrollView.contentInsetAdjustmentBehavior = .never
+        // Устанавливаем маску для черной окраски краев экрана
+        configureWebViewMasks()
         
         // Загрузка URL
         loadURL()
@@ -47,11 +44,41 @@ class WebViewControllerWrapper: NSObject, ObservableObject, WKNavigationDelegate
     
     // Устанавливает отступы для контента WebView
     func setContentInsets(top: CGFloat, bottom: CGFloat) {
+        // Отступы для контента
         let insets = UIEdgeInsets(top: top, left: 0, bottom: bottom, right: 0)
         webView.scrollView.contentInset = insets
         webView.scrollView.scrollIndicatorInsets = insets
         
+        // Важно: отключаем автоматическую настройку отступов контента
+        webView.scrollView.contentInsetAdjustmentBehavior = .never
+        
+        // Обновляем маски для SafeArea
+        updateSafeAreaMasks(top: top, bottom: bottom)
+        
         print("WWWFrame: Setting WebView content insets - top: \(top), bottom: \(bottom)")
+    }
+    
+    // Настройка маски для черной окраски краев экрана
+    private func configureWebViewMasks() {
+        // Устанавливаем свойства WebView для отображения маски
+        webView.clipsToBounds = true
+        webView.layer.masksToBounds = true
+        
+        // Отключаем прокрутку за пределы контента
+        webView.scrollView.bounces = false
+        webView.scrollView.alwaysBounceVertical = false
+    }
+    
+    // Обновляем маски для SafeArea
+    private func updateSafeAreaMasks(top: CGFloat, bottom: CGFloat) {
+        // Устанавливаем отступы от верхнего и нижнего края
+        webView.scrollView.contentInset = UIEdgeInsets(top: top, left: 0, bottom: bottom, right: 0)
+        
+        // Отступы для индикаторов прокрутки
+        webView.scrollView.scrollIndicatorInsets = UIEdgeInsets(top: top, left: 0, bottom: bottom, right: 0)
+        
+        // Убеждаемся, что safe area не пересекается с контентом
+        webView.scrollView.contentInsetAdjustmentBehavior = .never
     }
     
     // MARK: - WKNavigationDelegate
@@ -59,8 +86,6 @@ class WebViewControllerWrapper: NSObject, ObservableObject, WKNavigationDelegate
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         isLoading = false
         print("WWWFrame: WebView finished loading: \(webView.url?.absoluteString ?? "unknown")")
-        
-        // Удаляем применение CSS стилей
     }
     
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {

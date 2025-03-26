@@ -2,12 +2,6 @@ import SwiftUI
 import WebKit
 
 class WebViewHostingController<Content: View>: UIHostingController<Content> {
-    // Черные слои для SafeArea
-    private var topSafeAreaOverlay: UIView!
-    private var bottomSafeAreaOverlay: UIView!
-    private var leftSafeAreaOverlay: UIView!
-    private var rightSafeAreaOverlay: UIView!
-    
     override var prefersStatusBarHidden: Bool {
         return true
     }
@@ -29,67 +23,15 @@ class WebViewHostingController<Content: View>: UIHostingController<Content> {
         // Важно для корректной работы с SafeArea
         overrideUserInterfaceStyle = .dark
         
-        // Создаем и добавляем черные оверлеи для всех сторон SafeArea
-        setupSafeAreaOverlays()
-        
-        // Ищем и настраиваем WebView для правильных отступов
+        // Настраиваем WebView для правильных отступов
         findAndConfigureWebView()
     }
     
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
         
-        // Обновляем размеры оверлеев при изменении layout
-        updateSafeAreaOverlays()
-        
         // Обновляем отступы в WebView при изменении размеров
         updateWebViewInsets()
-    }
-    
-    private func setupSafeAreaOverlays() {
-        // Верхний оверлей
-        topSafeAreaOverlay = UIView()
-        topSafeAreaOverlay.backgroundColor = .black
-        topSafeAreaOverlay.translatesAutoresizingMaskIntoConstraints = false
-        
-        // Нижний оверлей
-        bottomSafeAreaOverlay = UIView()
-        bottomSafeAreaOverlay.backgroundColor = .black
-        bottomSafeAreaOverlay.translatesAutoresizingMaskIntoConstraints = false
-        
-        // Левый оверлей
-        leftSafeAreaOverlay = UIView()
-        leftSafeAreaOverlay.backgroundColor = .black
-        leftSafeAreaOverlay.translatesAutoresizingMaskIntoConstraints = false
-        
-        // Правый оверлей
-        rightSafeAreaOverlay = UIView()
-        rightSafeAreaOverlay.backgroundColor = .black
-        rightSafeAreaOverlay.translatesAutoresizingMaskIntoConstraints = false
-        
-        // Добавляем все оверлеи на view
-        view.addSubview(topSafeAreaOverlay)
-        view.addSubview(bottomSafeAreaOverlay)
-        view.addSubview(leftSafeAreaOverlay)
-        view.addSubview(rightSafeAreaOverlay)
-        
-        updateSafeAreaOverlays()
-        
-        // Убедимся, что оверлеи находятся поверх других вью
-        view.bringSubviewToFront(topSafeAreaOverlay)
-        view.bringSubviewToFront(bottomSafeAreaOverlay)
-        view.bringSubviewToFront(leftSafeAreaOverlay)
-        view.bringSubviewToFront(rightSafeAreaOverlay)
-    }
-    
-    private func updateSafeAreaOverlays() {
-        let safeArea = view.safeAreaInsets
-        
-        // Обновляем размеры и позиции оверлеев
-        topSafeAreaOverlay.frame = CGRect(x: 0, y: 0, width: view.bounds.width, height: safeArea.top)
-        bottomSafeAreaOverlay.frame = CGRect(x: 0, y: view.bounds.height - safeArea.bottom, width: view.bounds.width, height: safeArea.bottom)
-        leftSafeAreaOverlay.frame = CGRect(x: 0, y: safeArea.top, width: safeArea.left, height: view.bounds.height - safeArea.top - safeArea.bottom)
-        rightSafeAreaOverlay.frame = CGRect(x: view.bounds.width - safeArea.right, y: safeArea.top, width: safeArea.right, height: view.bounds.height - safeArea.top - safeArea.bottom)
     }
     
     // Ищем WebViewControllerWrapper в иерархии вью и настраиваем отступы
@@ -98,6 +40,10 @@ class WebViewHostingController<Content: View>: UIHostingController<Content> {
             // Устанавливаем начальные отступы
             let safeArea = self.view.safeAreaInsets
             webViewWrapper.setContentInsets(top: safeArea.top, bottom: safeArea.bottom)
+            
+            // Устанавливаем черный цвет для фона WebView
+            webViewWrapper.webView.backgroundColor = .black
+            webViewWrapper.webView.scrollView.backgroundColor = .black
         }
     }
     
@@ -114,8 +60,6 @@ class WebViewHostingController<Content: View>: UIHostingController<Content> {
         super.viewWillTransition(to: size, with: coordinator)
         
         coordinator.animate(alongsideTransition: { _ in
-            // Обновляем размеры оверлеев при повороте экрана
-            self.updateSafeAreaOverlays()
             // Обновляем отступы в WebView
             self.updateWebViewInsets()
         })
