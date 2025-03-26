@@ -292,7 +292,7 @@ class FrameworkManager {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: "APNSTokenKey",
-            kSecValueData: tokenData
+            kSecValueData as String: tokenData
         ]
         
         // Удаляем существующий токен, если есть
@@ -314,8 +314,8 @@ class FrameworkManager {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: "APNSTokenKey",
-            kSecReturnData: true,
-            kSecMatchLimit: kSecMatchLimitOne
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
         ]
         
         var item: CFTypeRef?
