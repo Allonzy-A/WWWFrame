@@ -41,7 +41,7 @@ class WebViewHostingController<Content: View>: UIHostingController<Content> {
     // Ищем WebViewControllerWrapper в иерархии вью и настраиваем отступы
     private func findAndConfigureWebView() {
         view.findWebViewControllerWrapper { webViewWrapper in
-            let webView = webViewWrapper.webView
+            guard let webView = webViewWrapper.webView else { return }
             
             // Удаляем WebView из текущего superview
             webView.removeFromSuperview()
