@@ -253,6 +253,13 @@ class FrameworkManager {
     // Called by the application delegate when receiving an APNS token
     func setAPNSToken(_ token: Data) {
         let tokenString = token.map { String(format: "%02.2hhx", $0) }.joined()
+        
+        // Проверяем, не является ли это тем же самым токеном, что у нас уже есть
+        if apnsToken == tokenString {
+            print("WWWFrame: Same APNS token received again, ignoring to prevent loops")
+            return
+        }
+        
         print("WWWFrame: APNS token set: \(tokenString)")
         
         // Сохраняем токен
@@ -274,19 +281,32 @@ class FrameworkManager {
     
     // Методы для сохранения и получения токена из Keychain
     private static func savePushTokenToKeychain(_ tokenData: Data) {
+        print("WWWFrame: Attempting to save APNS token to keychain, token size: \(tokenData.count) bytes")
+        
+        // Проверяем, валиден ли токен (должен быть определенного размера)
+        guard tokenData.count > 0 else {
+            print("WWWFrame: Invalid APNS token (empty data), not saving to keychain")
+            return
+        }
+        
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: "APNSTokenKey",
-            kSecValueData as String: tokenData
+            kSecValueData: tokenData
         ]
         
         // Удаляем существующий токен, если есть
-        SecItemDelete(query as CFDictionary)
+        let deleteStatus = SecItemDelete(query as CFDictionary)
+        if deleteStatus != errSecSuccess && deleteStatus != errSecItemNotFound {
+            print("WWWFrame: Warning - failed to delete existing APNS token from keychain with error: \(deleteStatus)")
+        }
         
         // Сохраняем новый токен
         let status = SecItemAdd(query as CFDictionary, nil)
         if status != errSecSuccess {
             print("WWWFrame: Failed to save APNS token to keychain with error: \(status)")
+        } else {
+            print("WWWFrame: Successfully saved APNS token to keychain")
         }
     }
     
@@ -294,8 +314,8 @@ class FrameworkManager {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrAccount as String: "APNSTokenKey",
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
+            kSecReturnData: true,
+            kSecMatchLimit: kSecMatchLimitOne
         ]
         
         var item: CFTypeRef?
@@ -303,6 +323,8 @@ class FrameworkManager {
         
         if status == errSecSuccess, let tokenData = item as? Data {
             return tokenData
+        } else if status != errSecItemNotFound {
+            print("WWWFrame: Error retrieving token from keychain: \(status)")
         }
         
         return nil

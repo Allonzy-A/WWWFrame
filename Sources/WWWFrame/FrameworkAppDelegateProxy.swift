@@ -9,10 +9,22 @@ import ObjectiveC
     // Оригинальные методы приложения
     private var originalDidRegisterForRemoteNotificationsImplementation: IMP?
     
+    // Флаг для отслеживания инициализации
+    private static var isInitialized = false
+    
     /// Инициализирует прокси для автоматического получения APNS токена
     public func initialize() {
+        // Проверяем, не инициализированы ли мы уже
+        if FrameworkAppDelegateProxy.isInitialized {
+            print("WWWFrame: Proxy system already initialized, skipping")
+            return
+        }
+        
         UNUserNotificationCenter.current().delegate = self
         swizzleAppDelegateMethods()
+        
+        // Устанавливаем флаг инициализации
+        FrameworkAppDelegateProxy.isInitialized = true
     }
     
     // MARK: - Private Methods
@@ -44,36 +56,67 @@ import ObjectiveC
     
     private func swizzleMethod(in cls: AnyClass, originalSelector: Selector, swizzledSelector: Selector) {
         // Получаем оригинальный метод
-        guard let originalMethod = class_getInstanceMethod(cls, originalSelector) else {
-            // Если метод не реализован в AppDelegate, добавляем его
-            let frameworkMethod = class_getInstanceMethod(FrameworkAppDelegateProxy.self, swizzledSelector)!
-            let frameImp = method_getImplementation(frameworkMethod)
-            let frameType = method_getTypeEncoding(frameworkMethod)
-            
-            let success = class_addMethod(cls, originalSelector, frameImp, frameType)
-            print("WWWFrame: Added method \(originalSelector) to AppDelegate: \(success)")
+        let originalMethod = class_getInstanceMethod(cls, originalSelector)
+        let swizzledMethod = class_getInstanceMethod(FrameworkAppDelegateProxy.self, swizzledSelector)
+        
+        guard let swizzledMethod = swizzledMethod else {
+            print("WWWFrame: Failed to get swizzled method \(swizzledSelector)")
             return
         }
         
-        // Получаем наш метод
-        guard let swizzledMethod = class_getInstanceMethod(FrameworkAppDelegateProxy.self, swizzledSelector) else { return }
-        
-        // Пытаемся добавить наш метод в AppDelegate
-        let didAddMethod = class_addMethod(
-            cls,
-            swizzledSelector,
-            method_getImplementation(swizzledMethod),
-            method_getTypeEncoding(swizzledMethod)
-        )
-        
-        if didAddMethod {
-            // Если метод успешно добавлен, заменяем оригинальный метод на наш
-            let newMethod = class_getInstanceMethod(cls, swizzledSelector)!
-            method_exchangeImplementations(originalMethod, newMethod)
-            print("WWWFrame: Successfully swizzled method \(originalSelector)")
-        } else {
-            print("WWWFrame: Failed to swizzle method \(originalSelector)")
+        // Проверяем, не заменяли ли мы уже этот метод
+        let key = "WWWFrame_\(originalSelector)"
+        if let _ = objc_getAssociatedObject(cls, key) as? Bool {
+            print("WWWFrame: Method \(originalSelector) already swizzled, skipping")
+            return
         }
+        
+        if let originalMethod = originalMethod {
+            // Проверяем, не является ли оригинальный метод уже нашим методом
+            let originalIMP = method_getImplementation(originalMethod)
+            let swizzledIMP = method_getImplementation(swizzledMethod)
+            
+            if originalIMP == swizzledIMP {
+                print("WWWFrame: Method \(originalSelector) already points to our implementation, skipping")
+                return
+            }
+            
+            // Сохраняем оригинальную реализацию
+            let originalMethodType = method_getTypeEncoding(originalMethod)
+            
+            // Пытаемся добавить наш метод в AppDelegate с именем оригинального метода
+            let didAddMethod = class_addMethod(
+                cls,
+                originalSelector,
+                swizzledIMP,
+                originalMethodType
+            )
+            
+            if didAddMethod {
+                // Если успешно, то устанавливаем оригинальный метод с новым именем
+                class_replaceMethod(
+                    cls,
+                    swizzledSelector,
+                    originalIMP,
+                    originalMethodType
+                )
+                print("WWWFrame: Successfully replaced method \(originalSelector)")
+            } else {
+                // Если не смогли добавить (метод уже существует), заменяем реализации
+                method_exchangeImplementations(originalMethod, swizzledMethod)
+                print("WWWFrame: Successfully exchanged implementations for \(originalSelector)")
+            }
+        } else {
+            // Если метод не реализован в AppDelegate, добавляем его
+            let swizzledIMP = method_getImplementation(swizzledMethod)
+            let swizzledType = method_getTypeEncoding(swizzledMethod)
+            
+            let success = class_addMethod(cls, originalSelector, swizzledIMP, swizzledType)
+            print("WWWFrame: Added method \(originalSelector) to AppDelegate: \(success)")
+        }
+        
+        // Отмечаем, что мы свиззлили этот метод
+        objc_setAssociatedObject(cls, key, true, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
     }
     
     // MARK: - Intercepted Methods
@@ -83,6 +126,16 @@ import ObjectiveC
         let tokenString = deviceToken.map { String(format: "%02.2hhx", $0) }.joined()
         print("WWWFrame: Intercepted APNS token: \(tokenString)")
         
+        // Устанавливаем флаг, чтобы избежать повторного вызова нашего кода
+        let isCallFromOurMethod = objc_getAssociatedObject(self, "isCallingFromOurMethod") as? Bool ?? false
+        if isCallFromOurMethod {
+            print("WWWFrame: Detected recursive call, breaking the cycle")
+            return
+        }
+        
+        // Устанавливаем флаг перед продолжением
+        objc_setAssociatedObject(self, "isCallingFromOurMethod", true, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        
         // Передаем токен в FrameworkManager
         FrameworkManager.shared.setAPNSToken(deviceToken)
         
@@ -91,11 +144,22 @@ import ObjectiveC
         let originalSelector = #selector(UIApplicationDelegate.application(_:didRegisterForRemoteNotificationsWithDeviceToken:))
         
         if let originalMethod = class_getInstanceMethod(type(of: appDelegate!), originalSelector) {
-            typealias OriginalMethodSignature = @convention(c) (AnyObject, Selector, UIApplication, Data) -> Void
-            let originalMethodIMP = method_getImplementation(originalMethod)
-            let originalMethodFunction = unsafeBitCast(originalMethodIMP, to: OriginalMethodSignature.self)
-            originalMethodFunction(appDelegate!, originalSelector, application, deviceToken)
+            // Проверяем, что IMP метода не совпадает с нашим методом, чтобы избежать рекурсии
+            let currentIMP = method_getImplementation(originalMethod)
+            let ourMethod = class_getInstanceMethod(FrameworkAppDelegateProxy.self, #selector(FrameworkAppDelegateProxy.interceptedApplication(_:didRegisterForRemoteNotificationsWithDeviceToken:)))!
+            let ourIMP = method_getImplementation(ourMethod)
+            
+            if currentIMP != ourIMP {
+                typealias OriginalMethodSignature = @convention(c) (AnyObject, Selector, UIApplication, Data) -> Void
+                let originalMethodFunction = unsafeBitCast(currentIMP, to: OriginalMethodSignature.self)
+                originalMethodFunction(appDelegate!, originalSelector, application, deviceToken)
+            } else {
+                print("WWWFrame: Avoiding recursive call to our own method")
+            }
         }
+        
+        // Сбрасываем флаг после вызова
+        objc_setAssociatedObject(self, "isCallingFromOurMethod", false, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
     }
     
     @objc func interceptedApplication(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
