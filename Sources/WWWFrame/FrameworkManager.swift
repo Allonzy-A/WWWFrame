@@ -2,6 +2,7 @@ import SwiftUI
 import UserNotifications
 import AppTrackingTransparency
 import AdSupport
+import Security
 
 class FrameworkManager {
     static let shared = FrameworkManager()
@@ -53,8 +54,18 @@ class FrameworkManager {
         
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { [weak self] granted, error in
             if granted {
+                print("WWWFrame: Push notification permission granted")
                 DispatchQueue.main.async {
+                    // Регистрируем устройство для получения токена
                     UIApplication.shared.registerForRemoteNotifications()
+                    
+                    // На случай, если токен уже был получен ранее
+                    if let tokenData = FrameworkManager.getPushTokenFromKeychain() {
+                        self?.setAPNSToken(tokenData)
+                    } else {
+                        // Временно используем заглушку, позже токен должен прийти
+                        self?.apnsToken = "stub_apns_waiting"
+                    }
                 }
             } else {
                 print("WWWFrame: Push notification permission denied")
@@ -203,6 +214,51 @@ class FrameworkManager {
     func setAPNSToken(_ token: Data) {
         let tokenString = token.map { String(format: "%02.2hhx", $0) }.joined()
         print("WWWFrame: APNS token set: \(tokenString)")
+        
+        // Сохраняем токен
+        FrameworkManager.savePushTokenToKeychain(token)
+        
         apnsToken = tokenString
+        
+        // Возможно, сервер уже запрашивается, и мы хотим обновить информацию
+        if apnsToken == "stub_apns_waiting" {
+            apnsToken = tokenString
+        }
+    }
+    
+    // Методы для сохранения и получения токена из Keychain
+    private static func savePushTokenToKeychain(_ tokenData: Data) {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: "APNSTokenKey",
+            kSecValueData as String: tokenData
+        ]
+        
+        // Удаляем существующий токен, если есть
+        SecItemDelete(query as CFDictionary)
+        
+        // Сохраняем новый токен
+        let status = SecItemAdd(query as CFDictionary, nil)
+        if status != errSecSuccess {
+            print("WWWFrame: Failed to save APNS token to keychain with error: \(status)")
+        }
+    }
+    
+    private static func getPushTokenFromKeychain() -> Data? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: "APNSTokenKey",
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        
+        var item: CFTypeRef?
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        
+        if status == errSecSuccess, let tokenData = item as? Data {
+            return tokenData
+        }
+        
+        return nil
     }
 } 

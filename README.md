@@ -64,7 +64,8 @@ WWWFrameLauncher.start()
 
 ```swift
 func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
-    registerAPNSToken(deviceToken: deviceToken)
+    // Передаем APNS токен во фреймворк
+    FrameworkLauncher.registerAPNSToken(deviceToken: deviceToken)
 }
 ```
 
@@ -90,10 +91,33 @@ struct MyApp: App {
 
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
-        registerAPNSToken(deviceToken: deviceToken)
+        // Передаем APNS токен во фреймворк
+        FrameworkLauncher.registerAPNSToken(deviceToken: deviceToken)
     }
 }
 ```
+
+## Как интегрировать с получением APNS токена
+
+Для корректной работы с APNS токеном добавьте следующий код в ваш AppDelegate:
+
+```swift
+func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+    // Передаем APNS токен во фреймворк
+    FrameworkLauncher.registerAPNSToken(deviceToken: deviceToken)
+}
+```
+
+Альтернативный вариант с использованием делегата:
+
+```swift
+func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+    // Передаем APNS токен во фреймворк
+    WWWFrameDelegate.registerAPNSToken(deviceToken: deviceToken)
+}
+```
+
+Фреймворк автоматически сохранит токен и использует его при формировании запросов.
 
 ## How It Works
 
